@@ -11,6 +11,7 @@
 
 #define SNAKE_ICON 'O'
 #define POINT '*'
+#define WAIT_TIME 2000
 
 struct winsize grid_size;
 
@@ -64,7 +65,7 @@ int		main(void) {
 		if (point_eaten)
 			add_point_on_grid(&grid);
 		print_grid(&grid);
-		for (unsigned int i = 0; i < 16000; i++)
+		for (unsigned int i = 0; i < 16000 - (score * 500); i++)
 			get_direction();
 	}
 }
@@ -187,18 +188,16 @@ void	is_it_game_over(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
 		game_over = true;
 	else if ((*grid)[head->y][head->x] == SNAKE_ICON)
 		game_over = true;
-	/*else if (grid[head->y][head->x - 1] == SNAKE_ICON && direction == 'd')
-		game_over = true;
-	else if (grid[head->y][head->x + 1] == SNAKE_ICON && direction == 'a')
-		game_over = true;*/
 
 	if (game_over) {
 		char character = '\0';
 		clear_terminal();
 		printf("GAME OVER\nScore: %i\nType r to restart, anything else to stop\n", score);
+		sleep(1);
+		printf(" ");
 		while (character == '\0')
 			character = get_char();
-			usleep(2000);
+			usleep(WAIT_TIME);
 		if (character == 'r') {
 			if (score < 1) {
 				free(tail);
@@ -286,11 +285,14 @@ void	get_direction(void) {
 void	wait_for_user_to_start(void) {
 	while (direction != 'w' && direction != 'a' && direction != 's' && direction != 'd')
 		get_direction();
-		usleep(2000);
+		usleep(WAIT_TIME);
 }
 
 void	create_snake(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
-	grow_snake(grid_size.ws_row / 2 , grid_size.ws_col / 2);
+	int x = grid_size.ws_col / 2;
+	if (x % 2 == 1)
+		x++;
+	grow_snake(grid_size.ws_row / 2 , x);
 	head = tail;
 	(*grid)[head->y][head->x] = SNAKE_ICON;
 }
@@ -299,7 +301,7 @@ void	add_point_on_grid(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
 	int y = rand() % grid_size.ws_row;
 	int x = rand() % grid_size.ws_col;
 
-	while ((*grid)[y][x] != ' ') {
+	while ((*grid)[y][x] != ' ' || x % 2 == 1) {
 		y = rand() % grid_size.ws_row;
 		x = rand() % grid_size.ws_col;
 	}
