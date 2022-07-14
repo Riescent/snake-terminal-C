@@ -8,6 +8,7 @@
 #include <sys/ioctl.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 #define SNAKE_ICON 'O'
 #define POINT '*'
@@ -27,6 +28,7 @@ void	grow_snake(int y, int x);
 void	get_direction(void);
 bool	eat_point(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
 char	get_char(void);
+unsigned long long get_time(void);
 
 typedef struct snake {
 	int y;
@@ -58,16 +60,24 @@ int		main(void) {
 	add_point_on_grid(&grid);
 	print_grid(&grid);
 	wait_for_user_to_start();
-	//direction = 'w';
+
 	while(true) {
 		move_snake(&grid);
 		previous_direction = direction;
 		if (point_eaten)
 			add_point_on_grid(&grid);
 		print_grid(&grid);
-		for (unsigned int i = 0; i < 16000 - (score * 500); i++)
+
+		unsigned long long go_time = get_time() + 100;
+		for (unsigned long long current_time = get_time(); current_time < go_time - (score > 50 ? 50 : score); current_time = get_time())
 			get_direction();
 	}
+}
+
+unsigned long long get_time(void) {
+	struct timeval t;
+	gettimeofday(&t, NULL);
+	return ((unsigned long long)(t.tv_sec) * 1000 + (unsigned long long)(t.tv_usec) / 1000);
 }
 
 bool	eat_point(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
