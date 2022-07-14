@@ -5,23 +5,26 @@
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/ioctl.h>
+#include <stdio.h>
+#include <unistd.h>
 
-#define MAX_Y 55
-#define MAX_X 202
 #define SNAKE_ICON 'O'
 #define POINT '*'
 
-void	create_grid(void);
-void	add_point_on_grid(void);
-void	create_snake(void);
+struct winsize grid_size;
+
+void	create_grid(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
+void	add_point_on_grid(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
+void	create_snake(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
 void	wait_for_user_to_start(void);
-void	print_grid(void);
+void	print_grid(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
 void	clear_terminal(void);
-void	is_it_game_over(void);
-void	move_snake(void);
+void	is_it_game_over(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
+void	move_snake(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
 void	grow_snake(int y, int x);
 void	get_direction(void);
-bool	eat_point(void);
+bool	eat_point(char (*grid)[grid_size.ws_row][grid_size.ws_col]);
 char	get_char(void);
 
 typedef struct snake {
@@ -30,7 +33,6 @@ typedef struct snake {
 	struct snake *next;
 } snake;
 
-char grid[MAX_Y][MAX_X];
 snake *head = NULL;
 snake *tail = NULL;
 char direction;
@@ -39,6 +41,10 @@ int score;
 bool point_eaten;
 
 int		main(void) {
+	ioctl(STDOUT_FILENO, TIOCGWINSZ, &grid_size);
+	grid_size.ws_row -= 5;
+	grid_size.ws_col -= 2;
+	char grid[grid_size.ws_row][grid_size.ws_col];
 	srand(time(NULL));
 	score = 0;
 	head = NULL;
@@ -46,46 +52,46 @@ int		main(void) {
 	point_eaten = false;
 	direction = '\0';
 
-	create_grid();
-	create_snake();
-	add_point_on_grid();
-	print_grid();
+	create_grid(&grid);
+	create_snake(&grid);
+	add_point_on_grid(&grid);
+	print_grid(&grid);
 	wait_for_user_to_start();
 	//direction = 'w';
 	while(true) {
-		move_snake();
+		move_snake(&grid);
 		previous_direction = direction;
 		if (point_eaten)
-			add_point_on_grid();
-		print_grid();
+			add_point_on_grid(&grid);
+		print_grid(&grid);
 		for (unsigned int i = 0; i < 16000; i++)
 			get_direction();
 	}
 }
 
-bool	eat_point(void) {
+bool	eat_point(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
 	switch (direction)
 	{
 	case 'w':
-		if (grid[head->y - 1][head->x] == POINT) {
+		if ((*grid)[head->y - 1][head->x] == POINT) {
 			score++;
 			return true;
 		}
 		break;
 	case 'a':
-		if (grid[head->y][head->x - 1] == POINT || grid[head->y][head->x - 2] == POINT) {
+		if ((*grid)[head->y][head->x - 1] == POINT || (*grid)[head->y][head->x - 2] == POINT) {
 			score++;
 			return true;
 		}
 		break;
 	case 's':
-		if (grid[head->y + 1][head->x] == POINT) {
+		if ((*grid)[head->y + 1][head->x] == POINT) {
 			score++;
 			return true;
 		}
 		break;
 	case 'd':
-		if (grid[head->y][head->x + 1] == POINT || grid[head->y][head->x + 2] == POINT) {
+		if ((*grid)[head->y][head->x + 1] == POINT || (*grid)[head->y][head->x + 2] == POINT) {
 			score++;
 			return true;
 		}
@@ -97,29 +103,29 @@ bool	eat_point(void) {
 	return false;
 }
 
-void delete_coordinates(int y, int x) {
-	if (grid[y][x] == 'O')
-		grid[y][x] = ' ';
+void delete_coordinates(int y, int x, char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
+	if ((*grid)[y][x] == 'O')
+		(*grid)[y][x] = ' ';
 }
 
-void	move_snake(void) {
+void	move_snake(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
 	//Update linked list
-	point_eaten = eat_point();
+	point_eaten = eat_point(grid);
 	snake *next = tail->next;
 	if (point_eaten)
 		grow_snake(tail->y, tail->x);
 	else {
-		delete_coordinates(tail->y, tail->x);
+		delete_coordinates(tail->y, tail->x, grid);
 		if (direction == 'd' || previous_direction == 'd')
-			delete_coordinates(tail->y, tail->x - 1);
+			delete_coordinates(tail->y, tail->x - 1, grid);
 		else if (direction == 'a' || previous_direction == 'a')
-			delete_coordinates(tail->y, tail->x + 1);
+			delete_coordinates(tail->y, tail->x + 1, grid);
 		if (next != NULL)
 			if (next->y == tail->y) {
 				if (next->x > tail->x)
-					delete_coordinates(tail->y, tail->x + 1);
+					delete_coordinates(tail->y, tail->x + 1, grid);
 				else
-					delete_coordinates(tail->y, tail->x - 1);
+					delete_coordinates(tail->y, tail->x - 1, grid);
 			}
 	}
 
@@ -154,12 +160,12 @@ void	move_snake(void) {
 		break;
 	}
 
-	is_it_game_over();
+	is_it_game_over(grid);
 		if (direction == 'd')
-			grid[head->y][head->x - 1] = SNAKE_ICON;
+			(*grid)[head->y][head->x - 1] = SNAKE_ICON;
 		else if (direction == 'a')
-			grid[head->y][head->x + 1] = SNAKE_ICON;
-		grid[head->y][head->x] = SNAKE_ICON;
+			(*grid)[head->y][head->x + 1] = SNAKE_ICON;
+		(*grid)[head->y][head->x] = SNAKE_ICON;
 
 }
 
@@ -173,13 +179,13 @@ void	grow_snake(int y, int x) {
 	tail = new_element;
 }
 
-void	is_it_game_over(void) {
+void	is_it_game_over(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
 	bool game_over = false;
 
-	if (head->y > MAX_Y - 1 || head->y < 0
-		|| head->x > MAX_X - 1 || head->x < 0)
+	if (head->y > grid_size.ws_row - 1 || head->y < 0
+		|| head->x > grid_size.ws_col - 1 || head->x < 0)
 		game_over = true;
-	else if (grid[head->y][head->x] == SNAKE_ICON)
+	else if ((*grid)[head->y][head->x] == SNAKE_ICON)
 		game_over = true;
 	/*else if (grid[head->y][head->x - 1] == SNAKE_ICON && direction == 'd')
 		game_over = true;
@@ -221,24 +227,27 @@ void	clear_terminal(void) {
 	printf("\e[1;1H\e[2J");
 }
 
-void	print_grid(void) {
+void	print_grid(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
 
 	clear_terminal();
-	for (int x = 0; x < MAX_X; x++)
+	for (int x = 0; x < grid_size.ws_col; x++)
 		printf("_");
 	printf("\n");
-	for (int y = 0; y < MAX_Y; y++) {
+	for (int y = 0; y < grid_size.ws_row; y++) {
 		printf("|");
-		for (int x = 0; x < MAX_X; x++)
-			printf("%c", grid[y][x]);
+		for (int x = 0; x < grid_size.ws_col; x++)
+			printf("%c", (*grid)[y][x]);
 		printf("|\n");
 	}
-	for (int x = 0; x < MAX_X; x++)
+	for (int x = 0; x < grid_size.ws_col; x++)
 		printf("_");
 	printf("\n");
-	for (int i = 0; i < MAX_X / 2 - 4; i++)
+	for (int i = 0; i < grid_size.ws_col / 2 - 4; i++)
 		printf(" ");
-	printf("Score: %i\nW -> up\nS -> down\nA -> left\nD -> right\n", score);
+	printf("Score: %i\n", score);
+	for (int i = 0; i < grid_size.ws_col / 2 - 20; i++)
+		printf(" ");
+	printf("W -> up, S -> down, A -> left, D -> right\n");
 }
 
 // returns character if a key is being pressed, else returns '\0'
@@ -280,25 +289,25 @@ void	wait_for_user_to_start(void) {
 		usleep(2000);
 }
 
-void	create_snake(void) {
-	grow_snake(MAX_Y / 2 , MAX_X / 2);
+void	create_snake(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
+	grow_snake(grid_size.ws_row / 2 , grid_size.ws_col / 2);
 	head = tail;
-	grid[head->y][head->x] = SNAKE_ICON;
+	(*grid)[head->y][head->x] = SNAKE_ICON;
 }
 
-void	add_point_on_grid(void) {
-	int y = rand() % MAX_Y;
-	int x = rand() % MAX_X;
+void	add_point_on_grid(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
+	int y = rand() % grid_size.ws_row;
+	int x = rand() % grid_size.ws_col;
 
-	while (grid[y][x] != ' ') {
-		y = rand() % MAX_Y;
-		x = rand() % MAX_X;
+	while ((*grid)[y][x] != ' ') {
+		y = rand() % grid_size.ws_row;
+		x = rand() % grid_size.ws_col;
 	}
-	grid[y][x] = POINT;
+	(*grid)[y][x] = POINT;
 }
 
-void	create_grid(void) {
-	for (int y = 0; y < MAX_Y; y++)
-		for (int x = 0; x < MAX_X; x++)
-			grid[y][x] = ' ';
+void	create_grid(char (*grid)[grid_size.ws_row][grid_size.ws_col]) {
+	for (int y = 0; y < grid_size.ws_row; y++)
+		for (int x = 0; x < grid_size.ws_col; x++)
+			(*grid)[y][x] = ' ';
 }
